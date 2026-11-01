@@ -1,0 +1,602 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — FotocopyTrack{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Dashboard</h1>
+    <p class="page-sub">{{ period_label }}</p>
+  </div>
+  <div class="btn-group">
+    <button class="btn btn-primary" onclick="openLaporanModal()">
+      <i class="ti ti-report-money"></i> Laporan Kas
+    </button>
+  </div>
+</div>
+
+<!-- Filter periode -->
+<div class="filter-tabs">
+  <a href="?period=hari"   class="tab {% if period=='hari'   %}active{% endif %}">Hari ini</a>
+  <a href="?period=minggu" class="tab {% if period=='minggu' %}active{% endif %}">Minggu ini</a>
+  <a href="?period=bulan"  class="tab {% if period=='bulan'  %}active{% endif %}">Bulan ini</a>
+  <a href="?period=tahun"  class="tab {% if period=='tahun'  %}active{% endif %}">Tahun ini</a>
+  <a href="?period=semua"
+     class="tab {% if period=='semua' %}active{% endif %}"
+     style="border-color:var(--green);color:{% if period=='semua' %}var(--green-text){% else %}var(--green){% endif %};
+            {% if period=='semua' %}background:var(--green-bg);font-weight:500;{% endif %}">
+    <i class="ti ti-database" style="margin-right:3px;vertical-align:-2px;font-size:13px;"></i>
+    Semua data
+  </a>
+</div>
+
+<!-- Banner: info rentang semua data -->
+{% if semua_info %}
+<div class="alert-success" style="margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+  <i class="ti ti-database"></i>
+  <span>Menampilkan seluruh data dari <strong>{{ semua_info.min }}</strong>
+    hingga <strong>{{ semua_info.max }}</strong></span>
+</div>
+{% endif %}
+
+<!-- Banner: tidak ada data di periode ini -->
+{% if not has_data %}
+  {% if total_all_time == 0 %}
+  <div class="alert-warning" style="margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+    <i class="ti ti-database-off"></i>
+    <span>Belum ada data.
+      <a href="{{ url_for('history.index') }}" style="color:var(--amber-text);font-weight:500;">
+        Import CSV →
+      </a>
+    </span>
+  </div>
+  {% elif period != 'semua' %}
+  <div class="alert-info" style="margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+    <i class="ti ti-info-circle"></i>
+    <span>Tidak ada data di periode ini.
+      <a href="?period=semua" style="color:var(--blue-text);font-weight:500;">
+        Lihat semua data →
+      </a>
+    </span>
+  </div>
+  {% endif %}
+{% endif %}
+
+<!-- Stat cards -->
+<div class="stat-grid">
+  <div class="stat-box">
+    <p class="stat-label">Total lembar</p>
+    <p class="stat-val">{{ total_sheets }}</p>
+    {% if period not in ('semua', 'tahun') %}
+    <p class="stat-diff {% if diff_sheets > 0 %}up{% elif diff_sheets < 0 %}down{% else %}same{% endif %}">
+      {% if diff_sheets > 0 %}▲ {{ diff_sheets }}
+      {% elif diff_sheets < 0 %}▼ {{ diff_sheets | abs }}
+      {% else %}= {% endif %} dari kemarin
+    </p>
+    {% elif period == 'tahun' %}
+    <p class="stat-label" style="margin-top:3px;">total tahun ini</p>
+    {% else %}
+    <p class="stat-label" style="margin-top:3px;">total keseluruhan</p>
+    {% endif %}
+  </div>
+  <div class="stat-box">
+    <p class="stat-label">Total job</p>
+    <p class="stat-val">{{ total_jobs }}</p>
+    <p class="stat-label" style="margin-top:3px;">{{ period_label | lower }}</p>
+  </div>
+  <div class="stat-box">
+    <p class="stat-label">Gagal / batal</p>
+    <p class="stat-val text-danger">{{ failed_jobs }}</p>
+    <p class="stat-label" style="margin-top:3px;">job NG / STOP</p>
+  </div>
+</div>
+
+<!-- Estimasi biaya -->
+{% if total_sheets > 0 %}
+<div class="card">
+  <div class="card-body" style="display:flex;align-items:center;justify-content:space-between;">
+    <div>
+      <p style="font-size:11px;color:var(--text3);margin:0 0 2px;">
+        Estimasi biaya (Rp {{ price }}/lembar)
+      </p>
+      <p style="font-size:20px;font-weight:600;margin:0;">Rp {{ "{:,}".format(estimated_cost) }}</p>
+    </div>
+    <i class="ti ti-receipt" style="font-size:28px;color:var(--blue);opacity:.25;"></i>
+  </div>
+</div>
+{% endif %}
+
+<!-- Grafik -->
+<div class="card">
+  <div class="card-header">
+    <span>
+      <i class="ti ti-chart-bar"></i>
+      {% if period == 'semua' %}Pemakaian per bulan — semua data
+      {% elif period == 'tahun' %}Pemakaian per bulan — tahun ini
+      {% elif period == 'hari' %}Perbandingan hari ini vs kemarin
+      {% elif period == 'minggu' %}Pemakaian per hari — minggu ini
+      {% else %}Pemakaian per hari — {{ period_label | lower }}
+      {% endif %}
+    </span>
+    {% if period not in ('semua', 'tahun') %}
+    <div style="display:flex;gap:10px;font-size:11px;color:var(--text3);">
+      <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#94A3B8;margin-right:3px;"></span>Sebelumnya</span>
+      <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#16A34A;margin-right:3px;"></span>Kemarin</span>
+      <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#2563EB;margin-right:3px;"></span>Hari ini</span>
+    </div>
+    {% endif %}
+  </div>
+  <div class="card-body">
+    {% if has_chart_data %}
+    <canvas id="chart-main" height="90"></canvas>
+    <p style="font-size:11px;color:var(--text3);text-align:center;margin-top:6px;">
+      {% if period == 'hari' %}
+        Hari ini: {{ chart_data.data[chart_data.today_idx] }} lembar &nbsp;·&nbsp;
+        Kemarin: {{ chart_data.data[chart_data.yest_idx] }} lembar
+      {% elif period == 'semua' %}
+        Total {{ total_sheets }} lembar &nbsp;·&nbsp;
+        Tertinggi {{ chart_data.data | max }} lembar/bulan
+      {% elif period == 'tahun' %}
+        Total {{ total_sheets }} lembar &nbsp;·&nbsp;
+        Tertinggi {{ chart_data.data | max }} lembar/bulan
+      {% else %}
+        Total: {{ chart_data.data | sum }} lembar &nbsp;·&nbsp;
+        Tertinggi: {{ chart_data.data | max }} lembar/hari
+      {% endif %}
+    </p>
+    {% else %}
+    <div style="text-align:center;padding:32px 0;">
+      <i class="ti ti-chart-bar-off" style="font-size:32px;color:var(--text3);display:block;margin-bottom:8px;"></i>
+      <p style="font-size:13px;font-weight:500;color:var(--text2);margin:0 0 4px;">Tidak ada data di periode ini</p>
+      <p style="font-size:11px;color:var(--text3);margin:0;">
+        Coba pilih
+        <a href="?period=semua" style="color:var(--blue);">Semua data</a>
+        atau
+        <a href="{{ url_for('history.index') }}" style="color:var(--blue);">import CSV</a>
+      </p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Status mesin SNMP (hanya muncul kalau ada data SNMP) -->
+{% if snap and snap.is_online %}
+<div class="card">
+  <div class="card-header">
+    <span><i class="ti ti-cpu"></i> Status mesin</span>
+    <span style="font-size:11px;color:var(--text3);">
+      {{ snap.polled_at.strftime('%H:%M') if snap.polled_at else '-' }}
+    </span>
+  </div>
+  <div class="card-body">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+      {% if snap.toner_level is not none %}
+      <div class="prog-wrap">
+        <div class="prog-label">
+          <span>Toner hitam</span>
+          <strong>{{ snap.toner_level }}%</strong>
+        </div>
+        <div class="prog-bar">
+          <div class="prog-fill {% if snap.toner_level > 30 %}green{% elif snap.toner_level > 10 %}amber{% else %}red{% endif %}"
+               style="width:{{ snap.toner_level }}%;"></div>
+        </div>
+      </div>
+      {% endif %}
+      {% if snap.waste_toner_level is not none %}
+      <div class="prog-wrap">
+        <div class="prog-label">
+          <span>Waste toner</span>
+          <strong>{{ snap.waste_toner_level }}%</strong>
+        </div>
+        <div class="prog-bar">
+          <div class="prog-fill {% if snap.waste_toner_level < 60 %}green{% elif snap.waste_toner_level < 80 %}amber{% else %}red{% endif %}"
+               style="width:{{ snap.waste_toner_level }}%;"></div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    <div class="tray-grid">
+      {% for name, val, cap in [
+        ("Bypass", snap.tray_bypass, 50),
+        ("Drawer 1", snap.tray_1, 550),
+        ("Drawer 2", snap.tray_2, 550),
+        ("Drawer 3", snap.tray_3, 550),
+        ("Drawer 4", snap.tray_4, 550),
+      ] %}
+      {% if val is not none %}
+      <div class="tray-box">
+        <p class="tray-name">{{ name }}</p>
+        <p class="tray-val {% if val == 0 %}text-danger{% endif %}">{{ val }}</p>
+        <p class="tray-max">/ {{ cap }}</p>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- 5 job terbaru -->
+<div class="card" style="margin-bottom:0;">
+  <div class="card-header">
+    <span><i class="ti ti-clock"></i> 5 job terbaru</span>
+    <a href="{{ url_for('history.index') }}" class="btn" style="font-size:11px;padding:3px 10px;">
+      Lihat semua ↗
+    </a>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr>
+        <th>Nama job</th><th>Waktu</th>
+        <th style="text-align:center;">Lembar</th>
+        <th style="text-align:center;">Status</th>
+      </tr></thead>
+      <tbody>
+        {% for j in latest_jobs %}
+        <tr>
+          <td>{{ j.job_name or "-" }}</td>
+          <td class="text-muted">
+            {{ j.start_time.strftime('%d/%m %H:%M') if j.start_time else '-' }}
+          </td>
+          <td style="text-align:center;font-weight:500;"
+              class="{% if j.total_sheets == 0 %}text-danger{% endif %}">
+            {{ j.total_sheets }}
+          </td>
+          <td style="text-align:center;">
+            <span class="badge badge-{{ j.status | lower }}">{{ j.status }}</span>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-muted" style="text-align:center;padding:20px;">
+          Belum ada data.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MODAL LAPORAN KAS -->
+<div class="modal-overlay" id="modal-laporan" style="display:none;">
+  <div class="modal" style="max-width:780px;width:95%;max-height:88vh;display:flex;flex-direction:column;">
+
+    <div class="modal-header">
+      <div class="modal-icon info"><i class="ti ti-report-money"></i></div>
+      <div style="flex:1;">
+        <p class="modal-title">Laporan Pengeluaran Kertas</p>
+        <p class="modal-sub" id="lap-period-label">Memuat...</p>
+      </div>
+      <button class="btn" onclick="closeLaporanModal()" style="padding:6px 10px;">
+        <i class="ti ti-x"></i>
+      </button>
+    </div>
+
+    <!-- Filter -->
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);
+                display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+      <div>
+        <label>Dari tanggal</label>
+        <input type="date" id="lap-dari" />
+      </div>
+      <div>
+        <label>Sampai tanggal</label>
+        <input type="date" id="lap-sampai" />
+      </div>
+      <div>
+        <label>Tahun</label>
+        <select id="lap-tahun" onchange="lapPilihTahun()">
+          <option value="">— pilih —</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;">
+        <button class="btn" style="font-size:11px;" onclick="lapPreset('minggu')">Minggu ini</button>
+        <button class="btn" style="font-size:11px;" onclick="lapPreset('bulan')">Bulan ini</button>
+        <button class="btn" style="font-size:11px;" onclick="lapPreset('bulan_lalu')">Bulan lalu</button>
+        <button class="btn" style="font-size:11px;" onclick="lapPreset('tahun')">Tahun ini</button>
+        <button class="btn" style="font-size:11px;" onclick="lapPreset('semua')">Semua data</button>
+      </div>
+      <button class="btn btn-primary" onclick="loadLaporan()">
+        <i class="ti ti-search"></i> Tampilkan
+      </button>
+      <div style="flex:1;"></div>
+      <a class="btn" id="lap-pdf" href="#" target="_blank">
+        <i class="ti ti-file-type-pdf"></i> PDF
+      </a>
+      <a class="btn" id="lap-excel" href="#" target="_blank">
+        <i class="ti ti-file-spreadsheet"></i> Excel
+      </a>
+    </div>
+
+    <!-- Body: scrollable -->
+    <div style="flex:1;overflow-y:auto;padding:16px;">
+
+      <!-- Ringkasan -->
+      <div class="stat-grid" id="lap-summary">
+        <div class="stat-box">
+          <p class="stat-label">Total OK</p>
+          <p class="stat-val" id="lap-total-ok">-</p>
+          <p class="stat-label" style="margin-top:3px;">lembar</p>
+        </div>
+        <div class="stat-box">
+          <p class="stat-label">Total NG</p>
+          <p class="stat-val" style="color:var(--red-text);" id="lap-total-ng">-</p>
+          <p class="stat-label" style="margin-top:3px;">lembar</p>
+        </div>
+        <div class="stat-box">
+          <p class="stat-label">Total STOP</p>
+          <p class="stat-val" style="color:var(--red-text);" id="lap-total-stop">-</p>
+          <p class="stat-label" style="margin-top:3px;">lembar</p>
+        </div>
+        <div class="stat-box">
+          <p class="stat-label">Pendapatan (cetak)</p>
+          <p class="stat-val" style="color:var(--blue);" id="lap-total-biaya">-</p>
+          <p class="stat-label" style="margin-top:3px;" id="lap-price-info"></p>
+        </div>
+        <div class="stat-box">
+          <p class="stat-label">Total Kerugian</p>
+          <p class="stat-val" style="color:var(--red-text);" id="lap-total-pengeluaran">-</p>
+          <p class="stat-label" style="margin-top:3px;" id="lap-kerugian-info"></p>
+        </div>
+        <div class="stat-box">
+          <p class="stat-label">Saldo Bersih</p>
+          <p class="stat-val" id="lap-saldo-bersih">-</p>
+          <p class="stat-diff" id="lap-total-gagal" style="color:var(--red-text);display:none;"></p>
+        </div>
+      </div>
+      <p class="text-muted" style="font-size:12px;margin:-8px 0 12px 4px;">
+        Total job: <span id="lap-total-job">-</span> ·
+        Saldo Bersih = Pendapatan (OK) − nilai kertas NG/STOP
+      </p>
+
+      <!-- Tabel -->
+      <div id="lap-table-wrap" class="card" style="margin-bottom:0;">
+        <div class="card-header">
+          <span><i class="ti ti-table"></i> Detail pengeluaran per job</span>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:12%;">Tanggal</th>
+                <th style="width:8%;">Jam</th>
+                <th style="width:28%;">Nama Job</th>
+                <th style="width:12%;">Pengguna</th>
+                <th style="text-align:center;width:10%;">Lembar</th>
+                <th style="text-align:right;width:15%;">Biaya</th>
+                <th style="text-align:center;width:10%;">Status</th>
+                <th style="text-align:center;width:5%;">Src</th>
+              </tr>
+            </thead>
+            <tbody id="lap-tbody">
+              <tr><td colspan="8" style="text-align:center;padding:24px;" class="text-muted">Memuat data...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Empty state -->
+      <div id="lap-empty" class="alert-warning" style="display:none;align-items:center;gap:8px;">
+        <i class="ti ti-database-off"></i>
+        <span>Tidak ada data di periode ini. Coba ubah rentang tanggal atau pilih "Semua data".</span>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+{% if has_chart_data %}
+const chartData    = {{ chart_data | tojson }};
+const todayIdx     = chartData.today_idx;
+const yesterdayIdx = chartData.yest_idx;
+const period       = "{{ period }}";
+
+const colors = chartData.data.map((_, i) => {
+  if (period === "semua" || period === "tahun") return "#2563EB";
+  if (i === todayIdx)     return "#2563EB";
+  if (i === yesterdayIdx) return "#16A34A";
+  return "#94A3B8";
+});
+
+new Chart(document.getElementById("chart-main"), {
+  type: "bar",
+  data: {
+    labels: chartData.labels,
+    datasets: [{
+      data: chartData.data,
+      backgroundColor: colors,
+      borderRadius: 4,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: "#F1F3F5" }, ticks: { color: "#868E96", font: { size: 11 } } },
+      y: { grid: { color: "#F1F3F5" }, ticks: { color: "#868E96", font: { size: 11 } }, beginAtZero: true }
+    },
+    animation: { duration: 300 }
+  }
+});
+{% endif %}
+
+
+// ── Modal Laporan Kas ──────────────────────────────────────────────────
+function openLaporanModal() {
+  document.getElementById("modal-laporan").style.display = "flex";
+  lapLoadTahunList();
+  // Default: bulan ini
+  if (!document.getElementById("lap-dari").value) {
+    lapPreset("bulan");
+  } else {
+    loadLaporan();
+  }
+}
+
+function lapLoadTahunList() {
+  const sel = document.getElementById("lap-tahun");
+  fetch("/api/laporan/tahun-list")
+    .then(r => r.json())
+    .then(d => {
+      if (!d.ok) return;
+      sel.innerHTML = '<option value="">— pilih —</option>' +
+        d.tahun_list.map(y => `<option value="${y}">${y}</option>`).join("");
+    })
+    .catch(() => {});
+}
+
+function lapPilihTahun() {
+  const y = document.getElementById("lap-tahun").value;
+  if (!y) return;
+  const now = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  const sampai = (parseInt(y) === now.getFullYear())
+    ? `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`
+    : `${y}-12-31`;
+  document.getElementById("lap-dari").value   = `${y}-01-01`;
+  document.getElementById("lap-sampai").value = sampai;
+  loadLaporan();
+}
+
+function closeLaporanModal() {
+  document.getElementById("modal-laporan").style.display = "none";
+}
+
+function lapPreset(p) {
+  const now    = new Date();
+  const pad    = n => String(n).padStart(2, "0");
+  const fmtYMD = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  let dari, sampai;
+
+  if (p === "minggu") {
+    const mon = new Date(now);
+    mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    dari = fmtYMD(mon); sampai = fmtYMD(now);
+  } else if (p === "bulan") {
+    dari = `${now.getFullYear()}-${pad(now.getMonth()+1)}-01`;
+    sampai = fmtYMD(now);
+  } else if (p === "bulan_lalu") {
+    const first = new Date(now.getFullYear(), now.getMonth()-1, 1);
+    const last  = new Date(now.getFullYear(), now.getMonth(), 0);
+    dari = fmtYMD(first); sampai = fmtYMD(last);
+  } else if (p === "tahun") {
+    dari = `${now.getFullYear()}-01-01`; sampai = fmtYMD(now);
+  } else {
+    dari = "2000-01-01"; sampai = fmtYMD(now);
+  }
+  document.getElementById("lap-dari").value   = dari;
+  document.getElementById("lap-sampai").value = sampai;
+  const tahunSel = document.getElementById("lap-tahun");
+  if (tahunSel) tahunSel.value = (p === "tahun") ? String(now.getFullYear()) : "";
+  loadLaporan();
+}
+
+function loadLaporan() {
+  const dari   = document.getElementById("lap-dari").value;
+  const sampai = document.getElementById("lap-sampai").value;
+
+  document.getElementById("lap-tbody").innerHTML =
+    '<tr><td colspan="8" style="text-align:center;padding:24px;" class="text-muted">' +
+    '<i class="ti ti-loader spin"></i> Memuat data...</td></tr>';
+
+  fetch(`/api/laporan?dari=${dari}&sampai=${sampai}`)
+    .then(r => r.json())
+    .then(d => {
+      if (!d.ok) return;
+
+      document.getElementById("lap-period-label").textContent = d.period_label;
+      document.getElementById("lap-total-ok").textContent   = d.total_ok_lembar;
+      document.getElementById("lap-total-ng").textContent   = d.total_ng_lembar;
+      document.getElementById("lap-total-stop").textContent = d.total_stop_lembar;
+      document.getElementById("lap-total-job").textContent    = d.total_job;
+      document.getElementById("lap-total-biaya").textContent  = "Rp " + d.total_biaya.toLocaleString("id-ID");
+      document.getElementById("lap-price-info").textContent   = "Rp " + d.price + "/lembar";
+
+      // Kerugian & saldo
+      document.getElementById("lap-total-pengeluaran").textContent = "Rp " + d.total_kerugian_rupiah.toLocaleString("id-ID");
+      document.getElementById("lap-kerugian-info").textContent =
+        d.total_kerugian_lembar > 0
+          ? `${d.total_kerugian_lembar} lembar NG/STOP`
+          : "";
+      const saldo = d.saldo_bersih;
+      const saldoEl = document.getElementById("lap-saldo-bersih");
+      saldoEl.textContent = "Rp " + saldo.toLocaleString("id-ID");
+      saldoEl.style.color = saldo >= 0 ? "var(--green)" : "var(--red-text)";
+
+      const gagalEl = document.getElementById("lap-total-gagal");
+      if (d.total_gagal > 0) {
+        gagalEl.style.display = "block";
+        gagalEl.textContent = d.total_gagal + " job gagal/batal";
+      } else {
+        gagalEl.style.display = "none";
+      }
+
+      // Update link export
+      document.getElementById("lap-pdf").href   = `/laporan/export-pdf?dari=${dari}&sampai=${sampai}`;
+      document.getElementById("lap-excel").href = `/laporan/export-excel?dari=${dari}&sampai=${sampai}`;
+
+      if (!d.has_data) {
+        document.getElementById("lap-table-wrap").style.display = "none";
+        document.getElementById("lap-empty").style.display = "flex";
+      } else {
+        document.getElementById("lap-table-wrap").style.display = "block";
+        document.getElementById("lap-empty").style.display = "none";
+
+        // Render rows
+        let html = "";
+        d.rows.forEach(r => {
+          if (r.is_subtotal) {
+            html += `<tr style="background:var(--blue-bg);">
+              <td colspan="4" style="font-size:11px;font-weight:500;color:var(--blue-text);padding:6px 10px;">
+                Subtotal &nbsp;${r.tanggal}
+              </td>
+              <td style="text-align:center;font-weight:600;color:var(--blue-text);">${r.lembar}</td>
+              <td style="text-align:right;font-weight:600;color:var(--blue-text);font-family:var(--mono);font-size:11px;">
+                Rp ${r.biaya.toLocaleString("id-ID")}
+              </td>
+              <td colspan="2"></td>
+            </tr>`;
+          } else {
+            const isFail = r.status !== "OK";
+            html += `<tr>
+              <td class="text-muted" style="font-size:11px;">${r.is_first_of_day ? r.tanggal : ""}</td>
+              <td class="text-muted mono" style="font-size:11px;">${r.jam}</td>
+              <td style="${isFail ? "color:var(--red-text);" : ""}">${r.nama}</td>
+              <td class="text-muted">${r.user}</td>
+              <td style="text-align:center;font-weight:500;${isFail ? "color:var(--red-text);" : ""}">${r.lembar}</td>
+              <td style="text-align:right;font-family:var(--mono);font-size:11px;">
+                ${r.biaya > 0 ? "Rp " + r.biaya.toLocaleString("id-ID") : '<span class="text-muted">-</span>'}
+              </td>
+              <td style="text-align:center;"><span class="badge badge-${r.status.toLowerCase()}">${r.status}</span></td>
+              <td style="text-align:center;font-size:10px;color:var(--text3);">${r.source === "manual" ? "M" : "A"}</td>
+            </tr>`;
+          }
+        });
+
+        // Grand total
+        html += `<tr style="background:var(--blue);color:white;">
+          <td colspan="4" style="font-weight:700;font-size:13px;padding:10px 10px;color:white;">TOTAL KESELURUHAN</td>
+          <td style="text-align:center;font-weight:700;font-size:13px;color:white;">${d.total_lembar}</td>
+          <td style="text-align:right;font-weight:700;font-size:13px;font-family:var(--mono);color:white;">
+            Rp ${d.total_biaya.toLocaleString("id-ID")}
+          </td>
+          <td colspan="2"></td>
+        </tr>`;
+
+        document.getElementById("lap-tbody").innerHTML = html;
+      }
+    })
+    .catch(() => {
+      document.getElementById("lap-tbody").innerHTML =
+        '<tr><td colspan="8" style="text-align:center;padding:24px;" class="text-danger">Gagal memuat data.</td></tr>';
+    });
+}
+
+// Tutup modal saat klik di luar area
+document.getElementById("modal-laporan").addEventListener("click", function(e) {
+  if (e.target === this) closeLaporanModal();
+});
+
+</script>
+{% endblock %}

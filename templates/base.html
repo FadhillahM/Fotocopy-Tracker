@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}FotocopyTrack{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css" />
+</head>
+<body>
+  <div class="layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <i class="ti ti-printer"></i>
+        <div>
+          <p class="app-name">FotocopyTrack</p>
+          {% if device %}
+            <p class="device-name">{{ device.model or device.hostname or device.ip_address }}</p>
+            <span class="badge-online" id="status-badge">● Online</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a href="{{ url_for('dashboard.index') }}"
+           class="nav-item {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
+          <i class="ti ti-layout-dashboard"></i> Dashboard
+        </a>
+        <a href="{{ url_for('history.index') }}"
+           class="nav-item {% if request.endpoint == 'history.index' %}active{% endif %}">
+          <i class="ti ti-list"></i> Riwayat
+        </a>
+        <a href="{{ url_for('snmp.index') }}"
+           class="nav-item {% if request.endpoint == 'snmp.index' %}active{% endif %}">
+          <i class="ti ti-cpu"></i> Status Device
+        </a>
+        <a href="{{ url_for('settings.index') }}"
+           class="nav-item {% if request.endpoint == 'settings.index' %}active{% endif %}">
+          <i class="ti ti-settings"></i> Pengaturan
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="btn-footer" onclick="scanUlang()">
+          <i class="ti ti-radar"></i> Scan ulang
+        </button>
+        <button class="btn-footer danger" onclick="showDeleteModal()">
+          <i class="ti ti-trash"></i> Hapus data
+        </button>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+
+      <!-- NOTIFIKASI -->
+      {% if notifs %}
+      <div class="notif-bar">
+        {% for n in notifs %}
+        <div class="notif notif-{{ n.level }}">
+          <i class="ti ti-bell"></i> {{ n.message }}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <!-- MODAL HAPUS DATA -->
+  <div class="modal-overlay" id="modal-delete" style="display:none;">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-icon danger"><i class="ti ti-trash"></i></div>
+        <div>
+          <p class="modal-title">Hapus data</p>
+          <p class="modal-sub">Pilih data yang ingin dihapus</p>
+        </div>
+      </div>
+      <div class="modal-body">
+        <label class="check-option" id="opt-riwayat">
+          <input type="checkbox" id="cb-riwayat" onchange="updateDeleteBtn()" />
+          <div>
+            <p class="opt-title"><i class="ti ti-file-text"></i> Riwayat cetak</p>
+            <p class="opt-desc">Semua job cetak terhapus. Device tetap terdaftar.</p>
+          </div>
+        </label>
+        <label class="check-option" id="opt-device">
+          <input type="checkbox" id="cb-device" onchange="updateDeleteBtn()" />
+          <div>
+            <p class="opt-title"><i class="ti ti-printer"></i> Device terdaftar</p>
+            <p class="opt-desc">Hapus mesin tersimpan. Perlu scan ulang saat buka aplikasi berikutnya.</p>
+          </div>
+        </label>
+        <div id="warn-reset" class="alert-danger" style="display:none;">
+          <i class="ti ti-alert-triangle"></i>
+          Semua data terhapus permanen. Tindakan ini tidak bisa dibatalkan.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeDeleteModal()">Batal</button>
+        <button class="btn btn-danger" id="btn-delete" disabled onclick="doDelete()">
+          <span id="delete-label">Hapus</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL SCAN ULANG -->
+  <div class="modal-overlay" id="modal-scan" style="display:none;">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-icon info"><i class="ti ti-radar"></i></div>
+        <div>
+          <p class="modal-title">Scan ulang device</p>
+          <p class="modal-sub" id="scan-sub">Menghubungi mesin di IP tersimpan...</p>
+        </div>
+      </div>
+      <div class="modal-body" id="scan-body">
+        <div class="alert-info"><i class="ti ti-loader spin"></i> Scanning...</div>
+      </div>
+      <div class="modal-footer" id="scan-footer" style="display:none;">
+        <button class="btn" onclick="closeScanModal()">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/scan.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

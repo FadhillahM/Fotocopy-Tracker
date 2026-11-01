@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Setup — FotocopyTrack</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css" />
+</head>
+<body style="background:var(--bg);display:flex;align-items:center;justify-content:center;min-height:100vh;">
+<div style="width:100%;max-width:520px;padding:16px;">
+
+  <div style="text-align:center;margin-bottom:20px;">
+    <i class="ti ti-printer" style="font-size:40px;color:var(--blue);"></i>
+    <h1 style="font-size:18px;font-weight:600;margin:8px 0 4px;">FotocopyTrack</h1>
+    <p style="font-size:13px;color:var(--text3);">Pilih cara mengambil data mesin fotocopy</p>
+  </div>
+
+  <!-- PILIH MODE -->
+  <div id="mode-select">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+
+      <div class="mode-card" id="card-snmp" onclick="selectMode('snmp')"
+           style="border:2px solid var(--border);border-radius:var(--radius);padding:16px;cursor:pointer;text-align:center;transition:all .15s;">
+        <i class="ti ti-cpu" style="font-size:28px;color:var(--blue);margin-bottom:8px;display:block;"></i>
+        <p style="font-size:13px;font-weight:600;margin:0 0 4px;">Mode otomatis</p>
+        <p style="font-size:11px;color:var(--text3);margin:0;">Data otomatis dari mesin via jaringan. Perlu mesin terhubung ke LAN.</p>
+      </div>
+
+      <div class="mode-card" id="card-csv" onclick="selectMode('csv')"
+           style="border:2px solid var(--border);border-radius:var(--radius);padding:16px;cursor:pointer;text-align:center;transition:all .15s;">
+        <i class="ti ti-file-spreadsheet" style="font-size:28px;color:var(--green);margin-bottom:8px;display:block;"></i>
+        <p style="font-size:13px;font-weight:600;margin:0 0 4px;">Mode CSV</p>
+        <p style="font-size:11px;color:var(--text3);margin:0;">Upload file CSV riwayat cetak dari web mesin. Tanpa koneksi SNMP.</p>
+      </div>
+
+    </div>
+    <p style="font-size:11px;color:var(--text3);text-align:center;">
+      Mode CSV bisa di-upgrade ke SNMP kapan saja dari halaman Pengaturan.
+    </p>
+  </div>
+
+  <!-- FORM MODE SNMP -->
+  <div id="form-snmp" style="display:none;">
+    <div class="card">
+      <div class="card-header">
+        <span><i class="ti ti-radar"></i> Scan jaringan (SNMP)</span>
+        <button class="btn" style="font-size:11px;" onclick="backToMode()">← Ganti mode</button>
+      </div>
+      <div class="card-body">
+        <div class="form-group">
+          <label>Range IP jaringan</label>
+          <input type="text" id="ip-range" value="192.168.100." placeholder="192.168.1." />
+          <p style="font-size:11px;color:var(--text3);margin-top:4px;">Masukkan 3 oktet pertama, contoh: 192.168.1.</p>
+        </div>
+        <button class="btn btn-primary" style="width:100%;" onclick="startScan()">
+          <i class="ti ti-radar"></i> Scan jaringan
+        </button>
+        <div style="margin-top:10px;text-align:center;">
+          <button class="btn" style="font-size:12px;" onclick="showManualIP()">
+            <i class="ti ti-keyboard"></i> Input IP manual
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="manual-ip-form" style="display:none;" class="card">
+      <div class="card-header"><span>Input IP manual</span></div>
+      <div class="card-body">
+        <div class="alert-warning" style="margin-bottom:10px;">
+          <i class="ti ti-alert-triangle"></i> Pastikan IP benar dan mesin menyala.
+        </div>
+        <div style="display:flex;gap:6px;">
+          <input type="text" id="manual-ip" placeholder="192.168.100.5" style="font-family:var(--mono);" />
+          <button class="btn btn-primary" onclick="scanManual()" style="white-space:nowrap;">
+            <i class="ti ti-radar"></i> Scan
+          </button>
+        </div>
+        <div id="manual-result" style="margin-top:10px;"></div>
+      </div>
+    </div>
+
+    <div id="scan-result" style="display:none;" class="card">
+      <div class="card-header" id="result-header"><span>Hasil scan</span></div>
+      <div id="result-body"></div>
+    </div>
+  </div>
+
+  <!-- FORM MODE CSV -->
+  <div id="form-csv" style="display:none;">
+    <div class="card">
+      <div class="card-header">
+        <span><i class="ti ti-file-spreadsheet"></i> Upload file CSV riwayat cetak</span>
+        <button class="btn" style="font-size:11px;" onclick="backToMode()">← Ganti mode</button>
+      </div>
+      <div class="card-body">
+        <div class="alert-info" style="margin-bottom:12px;">
+          <i class="ti ti-info-circle"></i>
+          File CSV diambil dari web mesin Canon di:
+          <code style="font-size:11px;background:rgba(0,0,0,.06);padding:1px 5px;border-radius:3px;">
+            http://&lt;IP mesin&gt;/jlp.cgi?Flag=Html_Data&LogType=0
+          </code>
+        </div>
+
+        <!-- Nama mesin (opsional) -->
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Nama mesin (opsional)</label>
+            <input type="text" id="csv-name" placeholder="Canon iR4570" />
+          </div>
+          <div class="form-group">
+            <label>IP mesin (opsional)</label>
+            <input type="text" id="csv-ip" placeholder="192.168.100.5"
+                   style="font-family:var(--mono);" />
+          </div>
+        </div>
+
+        <!-- Upload area -->
+        <div id="drop-area"
+             style="border:2px dashed var(--border);border-radius:var(--radius);padding:24px;
+                    text-align:center;margin-bottom:12px;cursor:pointer;transition:all .15s;"
+             onclick="document.getElementById('csv-file').click()"
+             ondragover="event.preventDefault();this.style.borderColor='var(--blue)'"
+             ondragleave="this.style.borderColor='var(--border)'"
+             ondrop="handleDrop(event)">
+          <i class="ti ti-upload" style="font-size:24px;color:var(--text3);margin-bottom:8px;display:block;"></i>
+          <p style="font-size:13px;font-weight:500;margin:0 0 4px;">Klik atau drag & drop file CSV</p>
+          <p style="font-size:11px;color:var(--text3);margin:0;">Format: pprint.csv dari web mesin Canon</p>
+        </div>
+        <input type="file" id="csv-file" accept=".csv" style="display:none;" onchange="handleFile(this.files[0])" />
+
+        <div id="csv-preview" style="display:none;margin-bottom:12px;">
+          <div class="alert-success">
+            <i class="ti ti-check"></i>
+            File dipilih: <strong id="csv-filename"></strong> —
+            <span id="csv-rowcount"></span> baris terdeteksi
+          </div>
+        </div>
+
+        <div id="csv-error" style="display:none;" class="alert-danger"></div>
+
+        <button class="btn btn-primary" style="width:100%;" id="btn-import-csv"
+                disabled onclick="importCSV()">
+          <i class="ti ti-file-import"></i> Import & mulai
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let selectedFile = null;
+let csvRows = 0;
+
+function selectMode(mode) {
+  document.getElementById("mode-select").style.display = "none";
+  document.getElementById("form-snmp").style.display = mode === "snmp" ? "block" : "none";
+  document.getElementById("form-csv").style.display  = mode === "csv"  ? "block" : "none";
+  // Highlight card
+  document.getElementById("card-snmp").style.borderColor = mode === "snmp" ? "var(--blue)"  : "var(--border)";
+  document.getElementById("card-csv").style.borderColor  = mode === "csv"  ? "var(--green)" : "var(--border)";
+}
+
+function backToMode() {
+  document.getElementById("form-snmp").style.display = "none";
+  document.getElementById("form-csv").style.display  = "none";
+  document.getElementById("mode-select").style.display = "block";
+}
+
+// ── Mode SNMP ────────────────────────────────────────────────────────────
+function startScan() {
+  const prefix = document.getElementById("ip-range").value.trim();
+  if (!prefix) { alert("Masukkan range IP"); return; }
+  document.getElementById("scan-result").style.display = "block";
+  document.getElementById("result-header").innerHTML =
+    '<span><i class="ti ti-loader spin"></i> Scanning ' + prefix + '1–20...</span>';
+  document.getElementById("result-body").innerHTML =
+    '<div class="card-body"><div class="alert-info">Sedang mencari mesin di jaringan...</div></div>';
+
+  const ips = Array.from({length: 20}, (_, i) => prefix + (i + 1));
+  const results = [];
+  let done = 0;
+  ips.forEach(ip => {
+    fetch("/api/scan", { method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ ip }) })
+      .then(r => r.json())
+      .then(d => { if (d.ok) results.push(d.device); })
+      .catch(() => {})
+      .finally(() => { done++; if (done === ips.length) renderResults(results); });
+  });
+}
+
+function renderResults(devices) {
+  document.getElementById("result-header").innerHTML =
+    `<span><i class="ti ti-list"></i> ${devices.length} device ditemukan</span>`;
+  if (!devices.length) {
+    document.getElementById("result-body").innerHTML =
+      `<div class="card-body">
+        <div class="alert-danger"><i class="ti ti-wifi-off"></i> Tidak ada mesin ditemukan.</div>
+        <p style="font-size:12px;color:var(--text3);">Coba input IP manual atau gunakan Mode CSV.</p>
+       </div>`;
+    return;
+  }
+  document.getElementById("result-body").innerHTML = devices.map(d => `
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                padding:12px 14px;border-bottom:1px solid var(--border);">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:32px;height:32px;border-radius:6px;background:var(--green-bg);
+                    display:flex;align-items:center;justify-content:center;">
+          <i class="ti ti-printer" style="color:var(--green-text);"></i>
+        </div>
+        <div>
+          <p style="font-size:13px;font-weight:500;margin:0;">${d.model || "Printer"}</p>
+          <p style="font-size:11px;color:var(--text3);margin:0;">${d.ip_address} · SNMP aktif</p>
+        </div>
+      </div>
+      <button class="btn btn-primary" style="font-size:12px;"
+              onclick='saveDevice(${JSON.stringify(d)})'>Pilih ini</button>
+    </div>`).join("");
+}
+
+function showManualIP() {
+  document.getElementById("manual-ip-form").style.display = "block";
+}
+
+function scanManual() {
+  const ip = document.getElementById("manual-ip").value.trim();
+  if (!ip) return;
+  const res = document.getElementById("manual-result");
+  res.innerHTML = '<div class="alert-info"><i class="ti ti-loader spin"></i> Scanning ' + ip + '...</div>';
+  fetch("/api/scan", { method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ ip }) })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) {
+        res.innerHTML = `<div class="alert-success"><i class="ti ti-check"></i> Ditemukan: ${d.device.model || ip}</div>
+          <button class="btn btn-success" style="margin-top:8px;"
+                  onclick='saveDevice(${JSON.stringify(d.device)})'>
+            <i class="ti ti-plug-connected"></i> Sambungkan
+          </button>`;
+      } else {
+        res.innerHTML = `<div class="alert-danger"><i class="ti ti-x"></i> ${d.error}</div>`;
+      }
+    });
+}
+
+function saveDevice(device) {
+  fetch("/api/device/save", { method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(device) })
+    .then(r => r.json())
+    .then(d => { if (d.ok) location.href = "/dashboard"; });
+}
+
+// ── Mode CSV ─────────────────────────────────────────────────────────────
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById("drop-area").style.borderColor = "var(--border)";
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+}
+
+function handleFile(file) {
+  if (!file || !file.name.endsWith(".csv")) {
+    document.getElementById("csv-error").style.display = "block";
+    document.getElementById("csv-error").textContent = "File harus berformat .csv";
+    return;
+  }
+  selectedFile = file;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.trim().split("\n").filter(l => l.trim()).length;
+    csvRows = lines - 1; // minus header
+    document.getElementById("csv-filename").textContent = file.name;
+    document.getElementById("csv-rowcount").textContent = csvRows + " job";
+    document.getElementById("csv-preview").style.display = "block";
+    document.getElementById("csv-error").style.display   = "none";
+    document.getElementById("btn-import-csv").disabled   = false;
+    document.getElementById("drop-area").style.borderColor = "var(--green)";
+  };
+  reader.readAsText(file);
+}
+
+function importCSV() {
+  if (!selectedFile) return;
+  const btn = document.getElementById("btn-import-csv");
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader spin"></i> Mengimport...';
+
+  const formData = new FormData();
+  formData.append("file", selectedFile);
+  formData.append("name", document.getElementById("csv-name").value || "Mesin CSV");
+  formData.append("ip",   document.getElementById("csv-ip").value   || "0.0.0.0");
+
+  fetch("/api/import-csv", { method: "POST", body: formData })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) {
+        location.href = "/dashboard";
+      } else {
+        document.getElementById("csv-error").style.display = "block";
+        document.getElementById("csv-error").textContent = d.error || "Gagal import";
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ti ti-file-import"></i> Import & mulai';
+      }
+    });
+}
+</script>
+</body>
+</html>

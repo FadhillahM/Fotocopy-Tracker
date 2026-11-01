@@ -1,0 +1,9 @@
+flask>=3.0
+sqlalchemy>=2.0
+flask-sqlalchemy>=3.1
+apscheduler>=3.10
+requests>=2.31
+beautifulsoup4>=4.12
+openpyxl>=3.1
+puresnmp>=2.0
+reportlab>=4.0

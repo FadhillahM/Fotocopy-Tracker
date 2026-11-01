@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block title %}Pengaturan — FotocopyTrack{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1 class="page-title">Pengaturan</h1>
+       <p class="page-sub">Konfigurasi aplikasi</p></div>
+</div>
+
+<!-- Harga -->
+<div class="card">
+  <div class="card-header">
+    <span><i class="ti ti-receipt"></i> Harga cetak per lembar (A4 & F4)</span>
+    <button class="btn btn-primary" id="btn-save-harga" style="display:none;font-size:12px;"
+            onclick="saveHarga()">
+      <i class="ti ti-check"></i> Simpan
+    </button>
+  </div>
+  <div class="card-body">
+    <div style="display:flex;align-items:center;gap:8px;max-width:220px;">
+      <span style="font-size:14px;color:var(--text3);flex-shrink:0;">Rp</span>
+      <input type="number" id="harga-input" value="{{ price }}" step="25" min="0"
+             style="font-size:18px;font-weight:600;" oninput="document.getElementById('btn-save-harga').style.display='inline-flex'"/>
+      <span style="font-size:12px;color:var(--text3);white-space:nowrap;">/ lembar</span>
+    </div>
+    <p style="font-size:11px;color:var(--text3);margin-top:8px;">
+      Berlaku untuk A4 dan F4. Digunakan untuk estimasi biaya di dashboard.
+    </p>
+    <div id="msg-harga"></div>
+  </div>
+</div>
+
+<!-- Info mesin -->
+<div class="card">
+  <div class="card-header"><span><i class="ti ti-printer"></i> Info mesin</span></div>
+  {% if device %}
+  <div class="card-body">
+    <div class="meta-grid">
+      <div class="meta-box"><p class="meta-lbl">Model</p>
+        <p class="meta-val">{{ device.model or "-" }}</p></div>
+      <div class="meta-box"><p class="meta-lbl">Nama host</p>
+        <p class="meta-val">{{ device.hostname or "-" }}</p></div>
+      <div class="meta-box"><p class="meta-lbl">Lokasi</p>
+        <p class="meta-val">{{ device.location or "-" }}</p></div>
+      <div class="meta-box"><p class="meta-lbl">Terdaftar sejak</p>
+        <p class="meta-val">{{ device.created_at.strftime('%d/%m/%Y') if device.created_at else "-" }}</p></div>
+    </div>
+    <!-- IP -->
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;">
+      <div>
+        <p style="font-size:10px;color:var(--text3);margin:0 0 2px;">Alamat IP</p>
+        <p class="mono" style="font-size:16px;font-weight:600;margin:0;">{{ device.ip_address }}</p>
+      </div>
+      <button class="btn" onclick="showGantiIP()"><i class="ti ti-pencil"></i> Ganti IP</button>
+    </div>
+    <p style="font-size:11px;color:var(--text3);margin-top:8px;">
+      Info diambil otomatis dari SNMP. Hanya IP yang bisa diubah.
+    </p>
+
+    <!-- Form ganti IP (tersembunyi) -->
+    <div id="form-ganti-ip" style="display:none;margin-top:12px;">
+      <div class="alert-warning">
+        <i class="ti ti-alert-triangle"></i>
+        Mengganti IP akan memutus koneksi ke <strong>{{ device.ip_address }}</strong>.
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;">
+        <input type="text" id="ip-baru" placeholder="IP baru, misal 192.168.1.25"
+               style="font-family:var(--mono);" />
+        <button class="btn btn-primary" onclick="gantiIP()" style="white-space:nowrap;">
+          <i class="ti ti-radar"></i> Scan & sambungkan
+        </button>
+        <button class="btn" onclick="document.getElementById('form-ganti-ip').style.display='none'">
+          Batal
+        </button>
+      </div>
+      <div id="msg-ip" style="margin-top:8px;"></div>
+    </div>
+  </div>
+  {% else %}
+  <div class="card-body">
+    <p class="text-muted">Belum ada device terdaftar.</p>
+  </div>
+  {% endif %}
+</div>
+
+
+<!-- Upgrade ke SNMP (hanya tampil jika belum ada koneksi SNMP) -->
+{% if device and not device.model %}
+<div class="card" style="border-color:var(--blue);">
+  <div class="card-header" style="background:var(--blue-bg);">
+    <span style="color:var(--blue-text);"><i class="ti ti-arrows-up"></i> Upgrade ke mode SNMP</span>
+  </div>
+  <div class="card-body">
+    <p style="font-size:12px;color:var(--text2);margin:0 0 10px;">
+      Sambungkan ke mesin via SNMP agar data diambil otomatis.
+      Jika data CSV tidak sinkron dengan mesin, hapus riwayat dulu lalu biarkan SNMP mengisi ulang.
+    </p>
+    <div style="display:flex;gap:6px;">
+      <input type="text" id="upgrade-ip" placeholder="IP mesin, misal 192.168.100.5"
+             style="font-family:var(--mono);" value="{{ device.ip_address if device.ip_address != '0.0.0.0' else '' }}" />
+      <button class="btn btn-primary" onclick="upgradeSnmp()" style="white-space:nowrap;">
+        <i class="ti ti-radar"></i> Scan & upgrade
+      </button>
+    </div>
+    <div id="msg-upgrade" style="margin-top:8px;"></div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Notifikasi -->
+<div class="card">
+  <div class="card-header">
+    <span><i class="ti ti-bell"></i> Batas notifikasi</span>
+    <button class="btn btn-primary" id="btn-save-notif" style="display:none;font-size:12px;"
+            onclick="saveNotif()">
+      <i class="ti ti-check"></i> Simpan
+    </button>
+  </div>
+  <div class="card-body" style="display:flex;flex-direction:column;gap:14px;">
+    <div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+        <label style="margin:0;"><i class="ti ti-layers-subtract"></i> Notifikasi kertas setelah pemakaian</label>
+        <strong id="val-kertas">{{ notif_paper }} lembar</strong>
+      </div>
+      <input type="range" id="sl-kertas" min="100" max="490" step="10"
+             value="{{ notif_paper }}" style="width:100%;"
+             oninput="document.getElementById('val-kertas').textContent=this.value+' lembar';document.getElementById('btn-save-notif').style.display='inline-flex'" />
+      <div class="alert-warning" style="margin-top:8px;font-size:11px;">
+        <i class="ti ti-bell"></i>
+        "Telah menggunakan <strong id="pv-kertas">{{ notif_paper }}</strong> lembar — segera isi ulang kertas."
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+        <label style="margin:0;"><i class="ti ti-droplet"></i> Notifikasi toner di bawah</label>
+        <strong id="val-toner">{{ notif_toner }}%</strong>
+      </div>
+      <input type="range" id="sl-toner" min="5" max="50" step="5"
+             value="{{ notif_toner }}" style="width:100%;"
+             oninput="document.getElementById('val-toner').textContent=this.value+'%';document.getElementById('pv-toner').textContent=this.value+'%';document.getElementById('btn-save-notif').style.display='inline-flex'" />
+      <div class="alert-warning" style="margin-top:8px;font-size:11px;">
+        <i class="ti ti-bell"></i>
+        "Level toner tersisa <strong id="pv-toner">{{ notif_toner }}</strong>% — segera ganti atau isi toner."
+      </div>
+    </div>
+    <div id="msg-notif"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById("sl-kertas").oninput = function() {
+  document.getElementById("val-kertas").textContent = this.value + " lembar";
+  document.getElementById("pv-kertas").textContent  = this.value;
+  document.getElementById("btn-save-notif").style.display = "inline-flex";
+};
+
+function saveHarga() {
+  const val = document.getElementById("harga-input").value;
+  fetch("/api/settings/save", { method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ price_per_sheet: val }) })
+    .then(r => r.json())
+    .then(() => {
+      document.getElementById("btn-save-harga").style.display = "none";
+      document.getElementById("msg-harga").innerHTML =
+        '<div class="alert-success" style="margin-top:8px;"><i class="ti ti-check"></i> Harga disimpan.</div>';
+      setTimeout(() => document.getElementById("msg-harga").innerHTML = "", 2000);
+    });
+}
+
+function saveNotif() {
+  fetch("/api/settings/save", { method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      notif_paper_threshold: document.getElementById("sl-kertas").value,
+      notif_toner_threshold: document.getElementById("sl-toner").value,
+    }) })
+    .then(r => r.json())
+    .then(() => {
+      document.getElementById("btn-save-notif").style.display = "none";
+      document.getElementById("msg-notif").innerHTML =
+        '<div class="alert-success"><i class="ti ti-check"></i> Notifikasi disimpan.</div>';
+      setTimeout(() => document.getElementById("msg-notif").innerHTML = "", 2000);
+    });
+}
+
+function showGantiIP() {
+  document.getElementById("form-ganti-ip").style.display = "block";
+}
+
+function gantiIP() {
+  const ip  = document.getElementById("ip-baru").value.trim();
+  const msg = document.getElementById("msg-ip");
+  if (!ip) return;
+  msg.innerHTML = '<div class="alert-info"><i class="ti ti-loader spin"></i> Scanning ' + ip + '...</div>';
+  fetch("/api/settings/change-ip", { method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ ip }) })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) {
+        msg.innerHTML = '<div class="alert-success"><i class="ti ti-check"></i> Terhubung ke ' + ip + '. Memuat ulang...</div>';
+        setTimeout(() => location.reload(), 1500);
+      } else {
+        msg.innerHTML = '<div class="alert-danger"><i class="ti ti-x"></i> ' + d.error + '</div>';
+      }
+    });
+}
+
+function upgradeSnmp() {
+  const ip  = document.getElementById('upgrade-ip').value.trim();
+  const msg = document.getElementById('msg-upgrade');
+  if (!ip) return;
+  msg.innerHTML = '<div class="alert-info"><i class="ti ti-loader spin"></i> Scanning ' + ip + '...</div>';
+  fetch('/api/settings/change-ip', { method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ ip }) })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) {
+        msg.innerHTML = '<div class="alert-success"><i class="ti ti-check"></i> Berhasil terhubung ke ' + ip + '. Memuat ulang...</div>';
+        setTimeout(() => location.reload(), 1500);
+      } else {
+        msg.innerHTML = '<div class="alert-danger"><i class="ti ti-x"></i> ' + d.error + '</div>';
+      }
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}Riwayat — FotocopyTrack{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1 class="page-title">Riwayat cetak</h1>
+       <p class="page-sub">{{ total }} job tercatat</p></div>
+  <div class="btn-group">
+    <button class="btn btn-primary" onclick="toggleForm()">
+      <i class="ti ti-plus"></i> Input manual
+    </button>
+    <label class="btn" style="cursor:pointer;" title="Import file CSV dari mesin">
+      <i class="ti ti-file-import"></i> Import CSV
+      <input type="file" id="import-csv-file" accept=".csv" style="display:none;"
+             onchange="importCSV(this.files[0])" />
+    </label>
+    <a href="{{ url_for('history.api_export', q=q, status=status, job_type=job_type) }}" class="btn">
+      <i class="ti ti-file-spreadsheet"></i> Excel
+    </a>
+  </div>
+</div>
+
+<!-- Form input manual -->
+<div id="form-manual" style="display:none;" class="card">
+  <div class="card-header"><span><i class="ti ti-edit"></i> Input riwayat manual</span></div>
+  <div class="card-body">
+    <div class="form-grid">
+      <div class="form-group"><label>Job Type</label>
+        <select id="f-jobtype" onchange="onJobTypeChange()">
+          <option value="print">Print</option>
+          <option value="copy">Copy</option>
+        </select></div>
+      <div class="form-group"><label>Pengguna</label>
+        <input type="text" id="f-user" placeholder="Nama pengguna" /></div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group" id="f-name-group"><label>Nama dokumen</label>
+        <input type="text" id="f-name" placeholder="Nama file (kosongkan jika Copy)" /></div>
+      <div class="form-group"><label>Waktu mulai</label>
+        <input type="datetime-local" id="f-time" /></div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group"><label>Jumlah lembar</label>
+        <input type="number" id="f-sheets" value="1" min="0" /></div>
+      <div class="form-group"><label>Ukuran kertas</label>
+        <select id="f-size"><option>A4</option><option>F4</option></select></div>
+      <div class="form-group"><label>Status</label>
+        <select id="f-status"><option>OK</option><option>STOP</option><option>NG</option></select></div>
+    </div>
+    <div id="form-msg"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn" onclick="toggleForm()">Batal</button>
+      <button class="btn btn-primary" onclick="submitManual()">
+        <i class="ti ti-check"></i> Simpan
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Filter & search -->
+<form method="GET" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+  <input type="text" name="q" value="{{ q }}" placeholder="Cari nama job / pengguna..."
+         style="flex:1;min-width:160px;" />
+  <select name="job_type" style="width:140px;">
+    <option value="">Semua tipe</option>
+    <option value="print" {% if job_type=='print' %}selected{% endif %}>Print</option>
+    <option value="copy"  {% if job_type=='copy'  %}selected{% endif %}>Copy</option>
+  </select>
+  <select name="status" style="width:140px;">
+    <option value="">Semua status</option>
+    <option value="OK"   {% if status=='OK'   %}selected{% endif %}>OK</option>
+    <option value="STOP" {% if status=='STOP' %}selected{% endif %}>STOP</option>
+    <option value="NG"   {% if status=='NG'   %}selected{% endif %}>NG</option>
+  </select>
+  <button class="btn btn-primary" type="submit"><i class="ti ti-search"></i> Cari</button>
+</form>
+
+<!-- Tabel -->
+<div class="card" style="margin-bottom:8px;">
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr>
+        <th style="text-align:center;">Job Type</th>
+        <th>Document</th>
+        <th>Start Time</th>
+        <th>End Time</th>
+        <th style="text-align:center;">Pages</th>
+        <th style="text-align:center;">Status</th>
+      </tr></thead>
+      <tbody>
+        {% for j in jobs %}
+        <tr>
+          <td style="text-align:center;">
+            {% if j.job_type == 'copy' %}
+            <span class="badge badge-manual">Copy</span>
+            {% else %}
+            <span class="badge badge-ok">Print</span>
+            {% endif %}
+          </td>
+          <td>{{ j.job_name or "-" }}</td>
+          <td class="text-muted">
+            {{ j.start_time.strftime('%d/%m/%Y %H:%M') if j.start_time else '-' }}
+          </td>
+          <td class="text-muted">
+            {{ j.end_time.strftime('%d/%m/%Y %H:%M') if j.end_time else '-' }}
+          </td>
+          <td style="text-align:center;font-weight:500;"
+              class="{% if j.total_sheets == 0 %}text-danger{% endif %}">
+            {{ j.total_sheets }}
+          </td>
+          <td style="text-align:center;">
+            <span class="badge badge-{{ j.status|lower }}">{{ j.status }}</span>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" style="text-align:center;padding:24px;" class="text-muted">
+          Belum ada data riwayat cetak.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Pagination -->
+<div class="pagination">
+  <span class="info">{{ total }} job ditemukan</span>
+  <div class="page-btns">
+    {% if page > 1 %}
+    <a href="?q={{ q }}&status={{ status }}&job_type={{ job_type }}&page={{ page-1 }}" class="btn">← Prev</a>
+    {% endif %}
+    <span class="btn" style="cursor:default;">{{ page }} / {{ pages }}</span>
+    {% if page < pages %}
+    <a href="?q={{ q }}&status={{ status }}&job_type={{ job_type }}&page={{ page+1 }}" class="btn">Next →</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleForm() {
+  const f = document.getElementById("form-manual");
+  f.style.display = f.style.display === "none" ? "block" : "none";
+  if (f.style.display === "block") {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    document.getElementById("f-time").value = now.toISOString().slice(0, 16);
+    onJobTypeChange();
+  }
+}
+
+function onJobTypeChange() {
+  const isCopy = document.getElementById("f-jobtype").value === "copy";
+  const nameGroup = document.getElementById("f-name-group");
+  const nameInput = document.getElementById("f-name");
+  nameGroup.style.display = isCopy ? "none" : "block";
+  if (isCopy) nameInput.value = "";
+}
+
+function submitManual() {
+  const body = {
+    job_type:   document.getElementById("f-jobtype").value,
+    job_name:   document.getElementById("f-name").value,
+    username:   document.getElementById("f-user").value,
+    start_time: document.getElementById("f-time").value,
+    sheets:     parseInt(document.getElementById("f-sheets").value) || 0,
+    copies:     1,
+    paper_size: document.getElementById("f-size").value,
+    status:     document.getElementById("f-status").value,
+  };
+  fetch("/api/history/add", { method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(body) })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) location.reload();
+      else document.getElementById("form-msg").innerHTML =
+        '<div class="alert-danger">' + (d.error || "Gagal menyimpan") + '</div>';
+    });
+}
+
+function importCSV(file) {
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  // Ambil device info dari halaman
+  fd.append('name', '{{ device.model or device.hostname or "Mesin" }}');
+  fd.append('ip',   '{{ device.ip_address or "0.0.0.0" }}');
+
+  const btn = document.querySelector('[title="Import file CSV dari mesin"]');
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<i class="ti ti-loader spin"></i> Importing...';
+
+  fetch('/api/import-csv', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) {
+        alert(d.imported + ' job baru diimport, ' + d.skipped + ' duplikat dilewati.');
+        location.reload();
+      } else {
+        alert('Gagal: ' + (d.error || 'Error tidak diketahui'));
+        btn.innerHTML = orig;
+      }
+    });
+}
+</script>
+{% endblock %}

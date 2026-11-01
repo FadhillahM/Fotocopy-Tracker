@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Status SNMP — FotocopyTrack{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><h1 class="page-title">Status Device</h1>
+       <p class="page-sub">Data real-time dari mesin · diperbarui tiap 60 detik</p></div>
+  <button class="btn" onclick="location.reload()">
+    <i class="ti ti-refresh"></i> Refresh
+  </button>
+</div>
+
+{% if snap %}
+<!-- Status online + uptime -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+  <div class="card" style="margin-bottom:0;">
+    <div class="card-body" style="display:flex;align-items:center;gap:10px;">
+      <div style="width:36px;height:36px;border-radius:50%;
+                  background:{% if snap.is_online %}var(--green-bg){% else %}var(--red-bg){% endif %};
+                  display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <i class="ti ti-{% if snap.is_online %}wifi{% else %}wifi-off{% endif %}"
+           style="font-size:18px;color:{% if snap.is_online %}var(--green-text){% else %}var(--red-text){% endif %};"></i>
+      </div>
+      <div>
+        <p style="font-size:10px;color:var(--text3);margin:0 0 2px;">Status mesin</p>
+        <p style="font-size:13px;font-weight:500;margin:0;">
+          {% if snap.is_online %}
+            <span class="badge badge-ok">Online · {{ snap.printer_status or "idle" }}</span>
+          {% else %}
+            <span class="badge badge-stop">Offline</span>
+          {% endif %}
+        </p>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:0;">
+    <div class="card-body" style="display:flex;align-items:center;gap:10px;">
+      <div style="width:36px;height:36px;border-radius:50%;background:var(--bg3);
+                  display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <i class="ti ti-clock" style="font-size:18px;color:var(--text3);"></i>
+      </div>
+      <div>
+        <p style="font-size:10px;color:var(--text3);margin:0 0 2px;">Uptime mesin</p>
+        <p style="font-size:13px;font-weight:500;margin:0;">
+          {% if snap.uptime_seconds %}
+            {{ (snap.uptime_seconds // 3600) }}j {{ ((snap.uptime_seconds % 3600) // 60) }}m
+          {% else %}-{% endif %}
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Counter lifetime -->
+<div class="card">
+  <div class="card-header"><span><i class="ti ti-hash"></i> Counter halaman</span></div>
+  <div class="card-body">
+    <div class="meta-grid">
+      <div class="meta-box">
+        <p class="meta-lbl">Total lifetime</p>
+        <p class="meta-val" style="font-size:20px;">
+          {{ "{:,}".format(snap.counter_lifetime) if snap.counter_lifetime else "-" }}
+        </p>
+      </div>
+      <div class="meta-box">
+        <p class="meta-lbl">Terakhir dicek</p>
+        <p class="meta-val">{{ snap.polled_at.strftime('%d/%m/%Y %H:%M') if snap.polled_at else "-" }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toner -->
+<div class="card">
+  <div class="card-header"><span><i class="ti ti-droplet"></i> Toner & supplies</span></div>
+  <div class="card-body">
+    {% for label, val, reverse in [
+      ("Toner hitam", snap.toner_level, False),
+      ("Waste toner", snap.waste_toner_level, True),
+    ] %}
+    {% if val is not none %}
+    <div class="prog-wrap">
+      <div class="prog-label">
+        <span>{{ label }}</span>
+        <strong>{{ val }}%</strong>
+      </div>
+      <div class="prog-bar">
+        {% if reverse %}
+          <div class="prog-fill {% if val < 60 %}green{% elif val < 80 %}amber{% else %}red{% endif %}"
+               style="width:{{ val }}%;"></div>
+        {% else %}
+          <div class="prog-fill {% if val > 30 %}green{% elif val > 10 %}amber{% else %}red{% endif %}"
+               style="width:{{ val }}%;"></div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Tray kertas -->
+<div class="card">
+  <div class="card-header"><span><i class="ti ti-layers-subtract"></i> Stok kertas per tray</span></div>
+  <div class="card-body">
+    <div class="tray-grid">
+      {% for name, val, cap in [
+        ("Bypass", snap.tray_bypass, 50),
+        ("Drawer 1", snap.tray_1, 550),
+        ("Drawer 2", snap.tray_2, 550),
+        ("Drawer 3", snap.tray_3, 550),
+        ("Drawer 4", snap.tray_4, 550),
+      ] %}
+      {% if val is not none %}
+      <div class="tray-box">
+        <p class="tray-name">{{ name }}</p>
+        <p class="tray-val {% if val == 0 %}text-danger{% elif val < 100 %}text-warning{% endif %}">
+          {{ val }}
+        </p>
+        <p class="tray-max">/ {{ cap }}</p>
+        <div class="prog-bar" style="margin-top:6px;">
+          <div class="prog-fill {% if val == 0 %}red{% elif val < cap*0.2 %}amber{% else %}blue{% endif %}"
+               style="width:{{ [val/cap*100, 100]|min|int }}%;"></div>
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="alert-danger">Belum ada data SNMP. Pastikan mesin terhubung dan polling berjalan.</div>
+{% endif %}
+
+<!-- Log online/offline -->
+<div class="card" style="margin-bottom:0;">
+  <div class="card-header"><span><i class="ti ti-history"></i> Riwayat status mesin</span></div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Waktu</th><th>Event</th></tr></thead>
+      <tbody>
+        {% set prev_online = None %}
+        {% for log in logs %}
+          {% if prev_online is none or log.is_online != prev_online %}
+          <tr>
+            <td class="text-muted">{{ log.polled_at.strftime('%d/%m/%Y %H:%M') }}</td>
+            <td>
+              {% if log.is_online %}
+              <span class="badge badge-ok">Online</span>
+              {% else %}
+              <span class="badge badge-stop">Offline</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% set prev_online = log.is_online %}
+          {% endif %}
+        {% else %}
+        <tr><td colspan="2" class="text-muted" style="text-align:center;padding:20px;">
+          Belum ada log status.
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
